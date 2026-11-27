@@ -1,1 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Check reCAPTCHA</title>
+  <script src="https://www.google.com/recaptcha/api.js?render=YOUR_SITE_KEY"></script>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #121212;
+      color: #e0e0e0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      margin: 0;
+    }
+    .card {
+      background: #1e1e1e;
+      padding: 2rem;
+      border-radius: 10px;
+      border: 1px solid #333;
+      text-align: center;
+      width: 320px;
+    }
+    .score {
+      font-size: 3.5rem;
+      font-weight: 700;
+      margin: 1rem 0;
+    }
+    .good { color: #4caf50; }
+    .warn { color: #ff9800; }
+    .bad  { color: #f44336; }
+    button {
+      background: #2b2b2b;
+      color: #fff;
+      border: 1px solid #444;
+      padding: 0.6rem 1.2rem;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.95rem;
+      margin-top: 1rem;
+    }
+    button:hover { background: #383838; }
+    pre {
+      text-align: left;
+      background: #141414;
+      padding: 0.75rem;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      overflow-x: auto;
+      color: #aaa;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div>reCAPTCHA v3 Score</div>
+    <div id="score" class="score">...</div>
+    <div id="status">Running check...</div>
+    <button onclick="runCheck()">Re-test</button>
+    <pre id="raw"></pre>
+  </div>
 
+  <script>
+    const SITE_KEY = 'YOUR_SITE_KEY';
+    const WEBHOOK_URL = 'https://n8n.klap.top/webhook/check-recaptcha';
+
+    function runCheck() {
+      const scoreEl = document.getElementById('score');
+      const statusEl = document.getElementById('status');
+      const rawEl = document.getElementById('raw');
+
+      scoreEl.textContent = '...';
+      scoreEl.className = 'score';
+      statusEl.textContent = 'Requesting token...';
+
+      grecaptcha.ready(() => {
+        grecaptcha.execute(SITE_KEY, { action: 'check' }).then(async (token) => {
+          statusEl.textContent = 'Verifying score...';
+          try {
+            const res = await fetch(WEBHOOK_URL, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ token })
+            });
+            const data = await res.json();
+
+            if (data.success && typeof data.score === 'number') {
+              scoreEl.textContent = data.score.toFixed(1);
+              if (data.score >= 0.7) {
+                scoreEl.classList.add('good');
+                statusEl.textContent = 'Clean / Human';
+              } else if (data.score >= 0.5) {
+                scoreEl.classList.add('warn');
+                statusEl.textContent = 'Borderline / Suspected Bot';
+              } else {
+                scoreEl.classList.add('bad');
+                statusEl.textContent = 'Flagged / High Risk';
+              }
+            } else {
+              scoreEl.textContent = 'ERR';
+              scoreEl.classList.add('bad');
+              statusEl.textContent = 'Verification failed';
+            }
+            rawEl.textContent = JSON.stringify(data, null, 2);
+          } catch (err) {
+            scoreEl.textContent = 'ERR';
+            scoreEl.classList.add('bad');
+            statusEl.textContent = err.message;
+          }
+        });
+      });
+    }
+
+    window.onload = runCheck;
+  </script>
+</body>
+</html>

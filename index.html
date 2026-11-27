@@ -6,102 +6,118 @@
   <title>Check reCAPTCHA</title>
   <script src="https://www.google.com/recaptcha/api.js?render=6LcVhTUuAAAAAATKBSphqHhpSXb1-q-tZgDgmthf"></script>
   <style>
+    .grecaptcha-badge { visibility: hidden !important; }
+    * { box-sizing: border-box; }
     body {
       font-family: system-ui, -apple-system, sans-serif;
-      background: #121212;
-      color: #e0e0e0;
+      background: #0d0d0d;
+      color: #e5e5e5;
       display: flex;
+      flex-direction: column;
       justify-content: center;
       align-items: center;
       height: 100vh;
       margin: 0;
+      user-select: none;
     }
-    .card {
-      background: #1e1e1e;
-      padding: 2rem;
-      border-radius: 10px;
-      border: 1px solid #333;
-      text-align: center;
-      width: 340px;
-    }
-    .result {
-      font-size: 3rem;
+    .score {
+      font-size: 6.5rem;
       font-weight: 700;
-      margin: 1rem 0;
+      line-height: 1;
+      letter-spacing: -0.03em;
+      margin-bottom: 0.75rem;
+      transition: color 0.2s ease;
     }
     .good { color: #4caf50; }
+    .warn { color: #ff9800; }
     .bad  { color: #f44336; }
-    button {
-      background: #2b2b2b;
-      color: #fff;
-      border: 1px solid #444;
-      padding: 0.6rem 1.2rem;
-      border-radius: 6px;
-      cursor: pointer;
-      font-size: 0.95rem;
-      margin-top: 1rem;
+    .dim  { color: #444; }
+    .status {
+      font-size: 0.9rem;
+      color: #777;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      margin-bottom: 2.5rem;
     }
-    button:hover { background: #383838; }
-    pre {
-      text-align: left;
-      background: #141414;
-      padding: 0.75rem;
-      border-radius: 6px;
-      font-size: 0.75rem;
-      overflow-x: auto;
-      color: #aaa;
-      white-space: pre-wrap;
-      word-break: break-all;
+    button {
+      background: transparent;
+      color: #666;
+      border: 1px solid #262626;
+      padding: 0.5rem 1.4rem;
+      border-radius: 999px;
+      cursor: pointer;
+      font-size: 0.85rem;
+      letter-spacing: 0.05em;
+      transition: all 0.15s ease;
+    }
+    button:hover {
+      color: #ccc;
+      border-color: #444;
     }
   </style>
 </head>
 <body>
-  <div class="card">
-    <div>reCAPTCHA v3 Token Check</div>
-    <div id="result" class="result">...</div>
-    <div id="status">Requesting token...</div>
-    <button onclick="runCheck()">Re-test</button>
-    <pre id="raw"></pre>
-  </div>
+  <div id="score" class="score dim">—</div>
+  <div id="status" class="status">Checking</div>
+  <button onclick="runCheck()">Re-test</button>
 
   <script>
     const SITE_KEY = '6LcVhTUuAAAAAATKBSphqHhpSXb1-q-tZgDgmthf';
+    const WEBHOOK_URL = 'https://n8n.klap.top/webhook/check-recaptcha';
 
     function runCheck() {
-      const resultEl = document.getElementById('result');
+      const scoreEl = document.getElementById('score');
       const statusEl = document.getElementById('status');
-      const rawEl = document.getElementById('raw');
 
-      resultEl.textContent = '...';
-      resultEl.className = 'result';
-      statusEl.textContent = 'Requesting token...';
-      rawEl.textContent = '';
+      scoreEl.textContent = '—';
+      scoreEl.className = 'score dim';
+      statusEl.textContent = 'Checking';
 
       if (typeof grecaptcha === 'undefined') {
-        resultEl.textContent = 'ERR';
-        resultEl.classList.add('bad');
-        statusEl.textContent = 'Google reCAPTCHA script blocked';
+        scoreEl.textContent = 'ERR';
+        scoreEl.className = 'score bad';
+        statusEl.textContent = 'Script blocked';
         return;
       }
 
       grecaptcha.ready(() => {
         grecaptcha.execute(SITE_KEY, { action: 'check' })
-          .then((token) => {
-            if (token && token.length > 20) {
-              resultEl.textContent = 'PASS';
-              resultEl.classList.add('good');
-              statusEl.textContent = 'Token issued by Google';
-              rawEl.textContent = 'Token prefix:\n' + token.slice(0, 60) + '...';
-            } else {
-              resultEl.textContent = 'FAIL';
-              resultEl.classList.add('bad');
-              statusEl.textContent = 'Empty token returned';
+          .then(async (token) => {
+            try {
+              const res = await fetch(WEBHOOK_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ token })
+              });
+              const data = await res.json();
+
+              if (data.success && typeof data.score === 'number') {
+                scoreEl.textContent = data.score.toFixed(1);
+                if (data.score >= 0.7) {
+                  scoreEl.className = 'score good';
+                  statusEl.textContent = 'Clean';
+                } else if (data.score >= 0.5) {
+                  scoreEl.className = 'score warn';
+                  statusEl.textContent = 'Borderline';
+                } else {
+                  scoreEl.className = 'score bad';
+                  statusEl.textContent = 'Flagged';
+                }
+              } else {
+                scoreEl.textContent = 'ERR';
+                scoreEl.className = 'score bad';
+                statusEl.textContent = (data['error-codes'] && data['error-codes'][0]) || 'Invalid response';
+              }
+            } catch (err) {
+              scoreEl.textContent = 'ERR';
+              scoreEl.className = 'score bad';
+              statusEl.textContent = err.message;
             }
           })
           .catch((err) => {
-            resultEl.textContent = 'ERR';
-            resultEl.classList.add('bad');
-            statusEl.textContent = err.message || 'Execution failed';
+            scoreEl.textContent = 'ERR';
+            scoreEl.className = 'score bad';
+            statusEl.textContent = err.message || 'Token error';
           });
       });
     }

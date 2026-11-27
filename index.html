@@ -22,15 +22,14 @@
       border-radius: 10px;
       border: 1px solid #333;
       text-align: center;
-      width: 320px;
+      width: 340px;
     }
-    .score {
-      font-size: 3.5rem;
+    .result {
+      font-size: 3rem;
       font-weight: 700;
       margin: 1rem 0;
     }
     .good { color: #4caf50; }
-    .warn { color: #ff9800; }
     .bad  { color: #f44336; }
     button {
       background: #2b2b2b;
@@ -51,66 +50,59 @@
       font-size: 0.75rem;
       overflow-x: auto;
       color: #aaa;
+      white-space: pre-wrap;
+      word-break: break-all;
     }
   </style>
 </head>
 <body>
   <div class="card">
-    <div>reCAPTCHA v3 Score</div>
-    <div id="score" class="score">...</div>
-    <div id="status">Running check...</div>
+    <div>reCAPTCHA v3 Token Check</div>
+    <div id="result" class="result">...</div>
+    <div id="status">Requesting token...</div>
     <button onclick="runCheck()">Re-test</button>
     <pre id="raw"></pre>
   </div>
 
   <script>
     const SITE_KEY = '6LcVhTUuAAAAAATKBSphqHhpSXb1-q-tZgDgmthf';
-    const WEBHOOK_URL = 'https://n8n.klap.top/webhook/check-recaptcha';
 
     function runCheck() {
-      const scoreEl = document.getElementById('score');
+      const resultEl = document.getElementById('result');
       const statusEl = document.getElementById('status');
       const rawEl = document.getElementById('raw');
 
-      scoreEl.textContent = '...';
-      scoreEl.className = 'score';
+      resultEl.textContent = '...';
+      resultEl.className = 'result';
       statusEl.textContent = 'Requesting token...';
+      rawEl.textContent = '';
+
+      if (typeof grecaptcha === 'undefined') {
+        resultEl.textContent = 'ERR';
+        resultEl.classList.add('bad');
+        statusEl.textContent = 'Google reCAPTCHA script blocked';
+        return;
+      }
 
       grecaptcha.ready(() => {
-        grecaptcha.execute(SITE_KEY, { action: 'check' }).then(async (token) => {
-          statusEl.textContent = 'Verifying score...';
-          try {
-            const res = await fetch(WEBHOOK_URL, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ token })
-            });
-            const data = await res.json();
-
-            if (data.success && typeof data.score === 'number') {
-              scoreEl.textContent = data.score.toFixed(1);
-              if (data.score >= 0.7) {
-                scoreEl.classList.add('good');
-                statusEl.textContent = 'Clean / Human';
-              } else if (data.score >= 0.5) {
-                scoreEl.classList.add('warn');
-                statusEl.textContent = 'Borderline / Suspected Bot';
-              } else {
-                scoreEl.classList.add('bad');
-                statusEl.textContent = 'Flagged / High Risk';
-              }
+        grecaptcha.execute(SITE_KEY, { action: 'check' })
+          .then((token) => {
+            if (token && token.length > 20) {
+              resultEl.textContent = 'PASS';
+              resultEl.classList.add('good');
+              statusEl.textContent = 'Token issued by Google';
+              rawEl.textContent = 'Token prefix:\n' + token.slice(0, 60) + '...';
             } else {
-              scoreEl.textContent = 'ERR';
-              scoreEl.classList.add('bad');
-              statusEl.textContent = 'Verification failed';
+              resultEl.textContent = 'FAIL';
+              resultEl.classList.add('bad');
+              statusEl.textContent = 'Empty token returned';
             }
-            rawEl.textContent = JSON.stringify(data, null, 2);
-          } catch (err) {
-            scoreEl.textContent = 'ERR';
-            scoreEl.classList.add('bad');
-            statusEl.textContent = err.message;
-          }
-        });
+          })
+          .catch((err) => {
+            resultEl.textContent = 'ERR';
+            resultEl.classList.add('bad');
+            statusEl.textContent = err.message || 'Execution failed';
+          });
       });
     }
 

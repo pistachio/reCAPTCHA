@@ -2,64 +2,111 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Check reCAPTCHA</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#09090b">
+  <title>reCAPTCHA</title>
   <script src="https://www.google.com/recaptcha/api.js?render=6LcVhTUuAAAAAATKBSphqHhpSXb1-q-tZgDgmthf"></script>
   <style>
     .grecaptcha-badge { visibility: hidden !important; }
-    * { box-sizing: border-box; }
-    body {
-      font-family: system-ui, -apple-system, sans-serif;
-      background: #0d0d0d;
-      color: #e5e5e5;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      align-items: center;
-      height: 100vh;
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+    html, body {
       margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100dvh;
+      overflow: hidden;
+      background-color: #09090b;
+      color: #fafafa;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, sans-serif;
       user-select: none;
     }
-    .score {
-      font-size: 6.5rem;
-      font-weight: 700;
-      line-height: 1;
-      letter-spacing: -0.03em;
-      margin-bottom: 0.75rem;
-      transition: color 0.2s ease;
+    body {
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      align-items: center;
+      padding: calc(env(safe-area-inset-top, 20px) + 1.5rem) 1.5rem calc(env(safe-area-inset-bottom, 20px) + 2rem);
     }
-    .good { color: #4caf50; }
-    .warn { color: #ff9800; }
-    .bad  { color: #f44336; }
-    .dim  { color: #444; }
-    .status {
-      font-size: 0.9rem;
-      color: #777;
-      letter-spacing: 0.04em;
+    .header {
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.16em;
       text-transform: uppercase;
-      margin-bottom: 2.5rem;
+      color: #52525b;
+    }
+    .center {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      width: 100%;
+    }
+    .score {
+      font-size: clamp(6rem, 28vw, 8.5rem);
+      font-weight: 700;
+      line-height: 0.95;
+      letter-spacing: -0.04em;
+      font-variant-numeric: tabular-nums;
+      margin-bottom: 1rem;
+      transition: color 0.25s ease, opacity 0.25s ease;
+    }
+    .good { color: #22c55e; }
+    .warn { color: #f59e0b; }
+    .bad  { color: #ef4444; }
+    .dim  { color: #27272a; }
+    .status {
+      font-size: 0.85rem;
+      font-weight: 500;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: #71717a;
+      min-height: 1.2em;
+    }
+    .footer {
+      width: 100%;
+      max-width: 320px;
     }
     button {
-      background: transparent;
-      color: #666;
-      border: 1px solid #262626;
-      padding: 0.5rem 1.4rem;
-      border-radius: 999px;
+      width: 100%;
+      height: 52px;
+      background-color: #18181b;
+      color: #a1a1aa;
+      border: 1px solid #27272a;
+      border-radius: 14px;
+      font-size: 0.9rem;
+      font-weight: 500;
+      letter-spacing: 0.04em;
       cursor: pointer;
-      font-size: 0.85rem;
-      letter-spacing: 0.05em;
-      transition: all 0.15s ease;
+      transition: background-color 0.15s ease, color 0.15s ease, transform 0.1s ease;
     }
-    button:hover {
-      color: #ccc;
-      border-color: #444;
+    button:active {
+      transform: scale(0.98);
+      background-color: #27272a;
+      color: #fafafa;
+    }
+    button:disabled {
+      opacity: 0.45;
+      pointer-events: none;
     }
   </style>
 </head>
 <body>
-  <div id="score" class="score dim">—</div>
-  <div id="status" class="status">Checking</div>
-  <button onclick="runCheck()">Re-test</button>
+  <div class="header">reCAPTCHA v3</div>
+
+  <div class="center">
+    <div id="score" class="score dim">—</div>
+    <div id="status" class="status">Checking</div>
+  </div>
+
+  <div class="footer">
+    <button id="retest-btn" onclick="runCheck()">Re-test</button>
+  </div>
 
   <script>
     const SITE_KEY = '6LcVhTUuAAAAAATKBSphqHhpSXb1-q-tZgDgmthf';
@@ -68,7 +115,9 @@
     function runCheck() {
       const scoreEl = document.getElementById('score');
       const statusEl = document.getElementById('status');
+      const btn = document.getElementById('retest-btn');
 
+      btn.disabled = true;
       scoreEl.textContent = '—';
       scoreEl.className = 'score dim';
       statusEl.textContent = 'Checking';
@@ -76,7 +125,8 @@
       if (typeof grecaptcha === 'undefined') {
         scoreEl.textContent = 'ERR';
         scoreEl.className = 'score bad';
-        statusEl.textContent = 'Script blocked';
+        statusEl.textContent = 'Blocked';
+        btn.disabled = false;
         return;
       }
 
@@ -106,18 +156,21 @@
               } else {
                 scoreEl.textContent = 'ERR';
                 scoreEl.className = 'score bad';
-                statusEl.textContent = (data['error-codes'] && data['error-codes'][0]) || 'Invalid response';
+                statusEl.textContent = (data['error-codes'] && data['error-codes'][0]) || 'Failed';
               }
             } catch (err) {
               scoreEl.textContent = 'ERR';
               scoreEl.className = 'score bad';
-              statusEl.textContent = err.message;
+              statusEl.textContent = 'Network Error';
+            } finally {
+              btn.disabled = false;
             }
           })
-          .catch((err) => {
+          .catch(() => {
             scoreEl.textContent = 'ERR';
             scoreEl.className = 'score bad';
-            statusEl.textContent = err.message || 'Token error';
+            statusEl.textContent = 'Token Error';
+            btn.disabled = false;
           });
       });
     }
